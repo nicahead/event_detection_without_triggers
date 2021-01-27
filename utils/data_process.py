@@ -143,11 +143,11 @@ def get_word_embed():
 
 
 if __name__ == '__main__':
-    # get_corpus('train')
-    # get_corpus('dev')
-    # get_corpus('test')
-    #
-    # get_dict()
+    get_corpus('train')
+    get_corpus('dev')
+    get_corpus('test')
+
+    get_dict()
 
     get_word_embed()
 

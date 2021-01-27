@@ -158,12 +158,12 @@ def run_model(train_data, WORDS, settings, wdict, ydict, edict):  # wdict, ydict
 def train(alpha=0.25):
     s = {
         'emb_dim': 300,  # word embedding size
-        'max_l': 80,  # max sen length
-        'n_class': 33,  # 事件类别数
+        'max_l': 120,  # max sen length
+        'n_class': 66,  # 事件类别数
         'n_ent': 56,  # 实体类型数
-        'dim_ent': 50,  # 实体嵌入维度
+        'dim_ent': 80,  # 实体嵌入维度
         'l2_weight': 0.00001,
-        'n_eps': 40,
+        'n_eps': 30,
         'batch_size': 100,
         'alpha': alpha,
     }
@@ -231,7 +231,7 @@ def eval_model(test_path, model_dir, model_version):  # wdict, ydict used to sho
 def run_eval():
     test_path = 'data/corpus_dev.txt'
     model_dir = 'trained_models'
-    model_ver = 'iter_40.ckpt'
+    model_ver = 'iter_30.ckpt'
     eval_model(test_path, model_dir, model_ver)
 
 
@@ -243,5 +243,5 @@ if __name__ == '__main__':
     # else:
     #     print('Error: Unkown Command')
 
-    # train(0.25)
+    train(0.25)
     run_eval()
