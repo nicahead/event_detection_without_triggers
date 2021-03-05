@@ -4,10 +4,8 @@ from collections import defaultdict, OrderedDict
 import re
 import sys
 import time
-# import tensorflow as tf
-import tensorflow.compat.v1 as tf
+import tensorflow as tf
 
-tf.disable_v2_behavior()
 
 class TBNNAM:
 
@@ -40,24 +38,24 @@ class TBNNAM:
         # event type embedding 2
         self.evt_embedding_last = tf.Variable(evt_emb, name='evt_emb_last')
 
-        self.x_w = tf.nn.embedding_lookup(self.w_embedding, self.sent) # self.sent (,80) -> self.x_w (?,80,300)
-        self.x_e = tf.nn.embedding_lookup(self.ent_embedding, self.ent) # self.ent (,80) -> self.x_e (?,80,50)
-        self.x_evt = tf.nn.embedding_lookup(self.evt_embedding, self.evt) # self.evt (,1) -> self.x_evt (?,1,350)
+        self.x_w = tf.nn.embedding_lookup(self.w_embedding, self.sent)
+        self.x_e = tf.nn.embedding_lookup(self.ent_embedding, self.ent)
+        self.x_evt = tf.nn.embedding_lookup(self.evt_embedding, self.evt)
         self.x_evt_last = tf.nn.embedding_lookup(self.evt_embedding_last, self.evt)
         self.x = tf.concat([self.x_w, self.x_e], 2)
 
         # lstm
-        self.encoder = tf.compat.v1.nn.rnn_cell.BasicLSTMCell(hidden_dim)
+        self.encoder = tf.contrib.rnn.BasicLSTMCell(hidden_dim)
         output, state = tf.nn.dynamic_rnn(self.encoder, self.x, sequence_length=self.lengths, dtype=tf.float32)
 
         # attention
-        attention1_logits = tf.matmul(output, tf.transpose(self.x_evt, [0, 2, 1])) # output:(?,80,350) -> (?,80,1)
-        attention1_logits = tf.reshape(attention1_logits, [-1, settings['max_l']]) * self.mask # (?,80)
-        attention1 = tf.exp(attention1_logits) * self.mask  # (?,80)
+        attention1_logits = tf.matmul(output, tf.transpose(self.x_evt, [0, 2, 1]))
+        attention1_logits = tf.reshape(attention1_logits, [-1, settings['max_l']]) * self.mask
+        attention1 = tf.exp(attention1_logits) * self.mask
 
         # attention score
-        _score1 = attention1_logits * attention1 / tf.reduce_sum(attention1, 1, keep_dims=True) # (?,80)
-        score1 = tf.reduce_sum(_score1, 1, keep_dims=True)  # (?,1)
+        _score1 = attention1_logits * attention1 / tf.reduce_sum(attention1, 1, keep_dims=True)
+        score1 = tf.reduce_sum(_score1, 1, keep_dims=True)
         cell, hidden = state
 
         # global score
@@ -75,3 +73,4 @@ class TBNNAM:
         self.cost = self.cost + lossL2
         self.optimizer = tf.train.AdamOptimizer().minimize(self.cost)
         self.att_value = _score1
+

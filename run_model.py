@@ -2,19 +2,14 @@
 import sys
 import time
 import os
-
-# import tensorflow as tf
-import tensorflow.compat.v1 as tf
-
-tf.disable_v2_behavior()
-
+import tensorflow as tf
 import numpy as np
-
 import random
 import json
 
 from utils import tools, load_data, show_result
 from model import tbnnam_model
+from utils.tools import get_max_len
 
 Prifix = os.path.join(os.getcwd(), os.path.dirname(__file__))
 
@@ -22,14 +17,11 @@ os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
 
 def convert2binary(data, ydict, neg_prob=0.4):
-    """
-    将每条样本变为多条二分类问题的样本
-    """
     sen, ent, y = data
 
     ret_sen, ret_ent, ret_evt, ret_label, ret_mask = [], [], [], [], []
-    for idx in range(len(sen)):   # 传入len(sen)条数据
-        for ly in ydict.values():  # 遍历所有事件类别
+    for idx in range(len(sen)):
+        for ly in ydict.values():
             lb = 1 if ly in y[idx] else 0
             if lb == 0 and random.random() > neg_prob: continue
             ret_sen.append(sen[idx])
@@ -54,44 +46,38 @@ def load_dicts(path):
 
 
 def predict_sen(sess, sen, ent, ydict, cmodel, max_ans=3):
-    """
-    预测一条句子的类别
-    """
     ans = []
     sens, ents, evts, masks = [], [], [], []
     labels = list(ydict.values())
-    # 对于每一种事件类型，做一个二分类，构造x个样本
     for y in labels:
         sens.append(sen)
         ents.append(ent)
-        masks.append([1 if x >= 0 else 0 for x in sen])  # 填充的部分masks为0，非填充的为1
+        masks.append([1 if x >= 0 else 0 for x in sen])
         evts.append(y)
     sens = np.array(sens, dtype='int32')
     evts = np.array(evts, dtype='int32')
     masks = np.array(masks, dtype='float32')
-    evts = evts[:, np.newaxis]  # (34) -> (34,1) 增加一个维度
+    evts = evts[:, np.newaxis]
 
     feeddict = {cmodel.sent: sens, cmodel.ent: ents, cmodel.evt: evts, cmodel.mask: masks}
     pred = sess.run(cmodel.pred, feed_dict=feeddict)
 
     for y, p in zip(labels, pred):
-        # 属于y类
-        if y != ydict['negative'] and p > 0.5:
+        if y != ydict['NEGATIVE'] and p > 0.5:
             ans.append((y, p))
-        if y == ydict['negative'] and p < 0.5:
+        if y == ydict['NEGATIVE'] and p < 0.5:
             # print s
             pass
+    # ans = sorted(ans, cmp=lambda a, b: cmp(a[1], b[1]), reverse=True)
     # 根据概率排序  ans=[(12, array([0.5393151], dtype=float32))]
     ans = sorted(ans, key=lambda x: x[1], reverse=True)
 
     ret = []
     if len(ans) > 0:
-        # 限制最多属于几个事件类别
         for k in ans[:max_ans]:
             ret.append(k[0])
-    # 不属于任何事件类型
     else:
-        ret.append(ydict['negative'])
+        ret.append(ydict['NEGATIVE'])
     return ret
 
 
@@ -158,13 +144,13 @@ def run_model(train_data, WORDS, settings, wdict, ydict, edict):  # wdict, ydict
 def train(alpha=0.25):
     s = {
         'emb_dim': 300,  # word embedding size
-        'max_l': 120,  # max sen length
+        'max_l': 100,  # max sen length
         'n_class': 66,  # 事件类别数
         'n_ent': 56,  # 实体类型数
         'dim_ent': 80,  # 实体嵌入维度
-        'l2_weight': 0.00001,
+        'l2_weight': 0.00003,
         'n_eps': 30,
-        'batch_size': 100,
+        'batch_size': 200,
         'alpha': alpha,
     }
 
@@ -176,10 +162,10 @@ def train(alpha=0.25):
     wdict = tools.load_dict(wdict_path)
     edict = tools.load_dict(edict_path)
     ydict = tools.load_dict(ydict_path)
-    ydict = {k.lower(): v for k, v in ydict.items()} # 变小写
+    ydict = {k: v for k, v in ydict.items()}
 
+    # s['max_l'] = get_max_len(train_path)
     train_data = load_data.load_data_ent(train_path, wdict, edict, ydict, s['max_l'])
-    # 词嵌入向量
     word_dest_p = '%s/data/embeddings/300.txt' % Prifix
     WORDS = tools.load_embedding(word_dest_p)
 
@@ -188,28 +174,25 @@ def train(alpha=0.25):
 
 def eval_model(test_path, model_dir, model_version):  # wdict, ydict used to show predicted result
     def test_sent(test_sents, test_ents, test_y):
-        """
-        预测传入句子（多条）的类型
-        """
         n_test_batch = len(test_sents)
         t_result = []
         for k in range(n_test_batch):
-            pred = predict_sen(sess, test_sents[k], test_ents[k], ydict, cmodel)
-            t_result.append((pred, test_y[k]))
-            ori_sen = ' '.join([rwdict[x] for x in test_sents[k] if x >= 0])
-            pred_ans = ','.join([rydict[x] for x in pred])
-            gold_ans = ','.join([rydict[x] for x in test_y[k]])
-            print('Sample %d: [Sen=%s] \n\t [ans=%s], [pred_events=%s]\n' % (k, ori_sen, gold_ans, pred_ans))
+            # if len(test_y[k]) > 1:
+            if 1:
+                pred = predict_sen(sess, test_sents[k], test_ents[k], ydict, cmodel)
+                t_result.append((pred, test_y[k]))
+                ori_sen = ' '.join([rwdict[x] for x in test_sents[k] if x >= 0])
+                pred_ans = ','.join([rydict[x] for x in pred])
+                gold_ans = ','.join([rydict[x] for x in test_y[k]])
+                # print('Sample %d: [Sen=%s] \n\t [ans=%s], [pred_events=%s]\n' % (k, ori_sen, gold_ans, pred_ans))
 
-        ptr_str, f = show_result.evaluate_results_binary(t_result, ydict['negative'])
+        ptr_str, f = show_result.evaluate_results_binary(t_result, ydict['NEGATIVE'])
         print(ptr_str)
 
-    # dicts.json: {edict:{"String_Crime": 1},ydict:{"arrest-jail": 4},wdict:{"fawn": 1},settings:{"n_class": 35}}
-    # edict-实体类型 ydict-事件类型 wdict-词典 settings-实验参数
     dicts = load_dicts(model_dir + '/dicts.json')
     wdict, ydict, edict, settings = dicts['wdict'], dicts['ydict'], dicts['edict'], dicts['settings']
-    rwdict = {v: k for k, v in wdict.items()}  # {1: "fawn"}
-    rydict = {v: k for k, v in ydict.items()}  # {4: "arrest-jail"}
+    rwdict = {v: k for k, v in wdict.items()}
+    rydict = {v: k for k, v in ydict.items()}
     test_data = load_data.load_data_ent(test_path, wdict, edict, ydict, settings['max_l'])
     test_sents, test_ents, test_y = test_data
     tf.reset_default_graph()
@@ -228,20 +211,18 @@ def eval_model(test_path, model_dir, model_version):  # wdict, ydict used to sho
         test_sent(test_sents, test_ents, test_y)
 
 
-def run_eval():
-    test_path = 'data/corpus_dev.txt'
+def run_eval(model_ver):
+    test_path = 'data/corpus_test.txt'
     model_dir = 'trained_models'
-    model_ver = 'iter_30.ckpt'
+    # model_ver = 'iter_21.ckpt'
     eval_model(test_path, model_dir, model_ver)
 
 
 if __name__ == '__main__':
-    # if sys.argv[1].strip().lower() == 'train':
-    #     train(0.25)
-    # elif sys.argv[1].strip().lower() == 'evaluation':
-    #     run_eval()
-    # else:
-    #     print('Error: Unkown Command')
-
-    train(0.25)
-    run_eval()
+    # train(0.25)
+    model_ver = 'iter_28.ckpt'
+    run_eval(model_ver)
+    # for i in range(26, 31):
+    #     print("epoch ", i)
+    #     model_ver = 'iter_{}.ckpt'.format(i)
+    #     run_eval(model_ver)

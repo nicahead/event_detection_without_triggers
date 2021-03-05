@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import os
 
 import pandas as pd
@@ -138,7 +139,8 @@ def get_word_embed():
             wi[w] = i
         return vectors, iw, wi, dim
 
-    vectors, iw, wi, dim = read_vectors('D:\\Project\\PyCharm\\merge_sgns_bigram_char300.txt', 0)  # 所有字的词典
+    vectors, iw, wi, dim = read_vectors('/home/nic/projects/event_detection/data/merge_sgns_bigram_char300.txt',
+                                        0)  # 所有字的词典
     wi['<PAD>'] = len(iw)
     wi['<UNK>'] = len(iw) + 1
     wi['<NUM>'] = len(iw) + 2
@@ -152,6 +154,7 @@ def get_word_embed():
     # 取出token对应的vector matrix
     vec_matrix = []
     for word in words:
+        word = word.replace('\n', '')
         vec = vectors.get(word, vectors['<UNK>'])
         vec_str = ' '.join(str(i) for i in vec)
         vec_matrix.append(vec_str)
